@@ -1,50 +1,62 @@
-/*
- * LIBRARIES REQUIRED:
- * - BluetoothSerial (Đã được tích hợp sẵn trong ESP32 Core)
- * 
- * BOARD: Makerbot BANHMI (ESP32-WROVER)
- * CHỨC NĂNG: Giao tiếp Bluetooth Classic với điện thoại Android/PC
- */
+#include <Wire.h>
+#include "RTClib.h"
 
-#include "BluetoothSerial.h"
+RTC_DS3231 rtc;
 
-// Khởi tạo đối tượng Bluetooth
-BluetoothSerial SerialBT;
+#define SDA_PIN 21
+#define SCL_PIN 22
 
-void setup() {
+void setup () {
   Serial.begin(115200);
+  while (!Serial) delay(10);
   
-  // Đặt tên thiết bị Bluetooth sẽ hiển thị khi dò tìm  
-  SerialBT.begin("BANHMI_Robot_Roxy"); 
+  Wire.begin(SDA_PIN, SCL_PIN);
+
+  if (! rtc.begin(&Wire)) {
+    Serial.println("Loi: Khong tim thay RTC tai 0x68!");
+    while (1) delay(10);
+  }
   
-  Serial.println("\n--- Khoi dong Example 4: Bluetooth Serial ---");
-  Serial.println("Bluetooth da bat. Hay dung dien thoai de ghep noi voi ten 'BANHMI_Robot_Roxy'");
+  // ==========================================
+  // ÉP BUỘC CẬP NHẬT THỜI GIAN (BỎ QUA KIỂM TRA)
+  // ==========================================
+  Serial.println("Dang ep RTC reset va xoa du lieu rac...");
+  
+  // Lệnh này lấy thời gian từ máy tính lúc biên dịch (compile) để nạp xuống chip
+  rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+  
+  // *** QUAN TRỌNG ***
+  // Sau khi code này chạy thành công và số giây đã nhảy bình thường:
+  // Bạn PHẢI thêm dấu // vào trước lệnh rtc.adjust(...) ở trên và nạp lại code lần 2.
+  // Nếu không, mỗi lần mạch bị reset, nó sẽ tự lùi thời gian về lại đúng cái khoảnh khắc bạn vừa nạp code :v
+  // ==========================================
 }
 
-void loop() {
-  // 1. Đọc dữ liệu từ Điện thoại gửi xuống ESP32
-  if (SerialBT.available()) {
-    char incomingChar = SerialBT.read();
-    Serial.print("Nhan duoc lenh tu dien thoai: ");
-    Serial.println(incomingChar);
+void loop () {
+  DateTime now = rtc.now();
 
-    // Xử lý lệnh điều khiển cơ bản
-    if (incomingChar == 'F' || incomingChar == 'f') {
-      Serial.println("-> Lenh: Xe chay toi!");
-      SerialBT.println("Da nhan lenh: TOI");
-    } 
-    else if (incomingChar == 'S' || incomingChar == 's') {
-      Serial.println("-> Lenh: Dung xe!");
-      SerialBT.println("Da nhan lenh: DUNG");
-    }
-  }
-
-  // 2. Gõ chữ từ Serial Monitor của máy tính gửi lên Điện thoại
-  if (Serial.available()) {
-    String outString = Serial.readString();
-    SerialBT.print("ESP32 noi: ");
-    SerialBT.println(outString);
-  }
+  Serial.print("Thoi gian: ");
+  Serial.print(now.year(), DEC);
+  Serial.print('/');
+  if(now.month() < 10) Serial.print('0');
+  Serial.print(now.month(), DEC);
+  Serial.print('/');
+  if(now.day() < 10) Serial.print('0');
+  Serial.print(now.day(), DEC);
+  Serial.print(" - ");
   
-  delay(20);
+  if(now.hour() < 10) Serial.print('0');
+  Serial.print(now.hour(), DEC);
+  Serial.print(':');
+  if(now.minute() < 10) Serial.print('0');
+  Serial.print(now.minute(), DEC);
+  Serial.print(':');
+  if(now.second() < 10) Serial.print('0');
+  Serial.print(now.second(), DEC);
+
+  Serial.print(" | Nhiet do chip: ");
+  Serial.print(rtc.getTemperature());
+  Serial.println(" *C");
+
+  delay(1000);
 }
